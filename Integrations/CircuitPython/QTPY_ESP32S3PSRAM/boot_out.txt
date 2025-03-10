@@ -1,0 +1,2 @@
+Adafruit CircuitPython 7.3.0-2-g65380c2b0-dirty on 2022-06-27; Waveshare ESP32-S2-Pico with ESP32S2
+Board ID:waveshare_esp32_s2_pico

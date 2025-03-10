@@ -1,0 +1,35 @@
+{
+	"schema": 2,
+	"known_networks": [
+		{
+			"ssid": "WLAN-547674",
+			"password": "33445881485616363347",
+			"enables_webrepl": false
+		},
+		{
+			"ssid": "faloaip",
+			"password": "36400768905295415032",
+			"enables_webrepl": false
+		},
+		{
+			"ssid": "MikroTik_OH",
+			"password": "H~a8kH=H6?_5",
+			"enables_webrepl": false
+		},
+		{
+			"ssid": "Vodafone-B504",
+			"password": "zkpp4nXzyPCeAmsC",
+			"enables_webrepl": false
+		}
+	],
+	"access_point": {
+		"config": {
+			"essid": "Micropython-Dev",
+			"channel": 11,
+			"hidden": false,
+			"password": "P@55W0rd"
+		},
+		"enables_webrepl": false,
+		"start_policy": "fallback"
+	}
+}

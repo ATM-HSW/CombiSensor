@@ -1,0 +1,35 @@
+{
+	"schema": 2,
+	"known_networks": [
+		{
+			"ssid": "WLAN-547674",
+			"password": "33445881485616363347",
+			"enables_webrepl": false
+		},
+		{
+			"ssid": "HUAWEI nova 2",
+			"password": "6e9c9668c843",
+			"enables_webrepl": false
+		},
+		{
+			"ssid": "MikroTik_OH",
+			"password": "H~a8kH=H6?_5",
+			"enables_webrepl": false
+		},
+		{
+			"ssid": "gigacube-C5D2",
+			"password": "9tDh7563952HN2B2",
+			"enables_webrepl": false
+		}
+	],
+	"access_point": {
+		"config": {
+			"essid": "Micropython-Dev",
+			"channel": 11,
+			"hidden": false,
+			"password": "P@55W0rd"
+		},
+		"enables_webrepl": false,
+		"start_policy": "fallback"
+	}
+}

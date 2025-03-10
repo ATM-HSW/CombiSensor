@@ -1,0 +1,24 @@
+{
+	"schema": 1,
+	"log_interval": 20,
+	"enable_display": true,
+	"enable_wdt": false,
+	"enable_wifi": true,
+	"enable_csv": false,
+	"topic": "mqtt/topic/test",
+	"thingsboard": true,
+	"thingsboard_host": "iot.fiw.hs-wismar.de", 
+	"thingsboard_ssl": true
+	"thingsboard_device": "GIvYBsaKR4YIdHmNBBu7",
+	"nodered": false,
+	"nodered_host": "nodered.org",
+	"nodered_ssl": true,
+	"nodered_user": "xyz123",
+	"nodered_pass": "xyz123",
+	"mqtt": false,
+	"mqtt_host": "mqtt.org", 
+	"mqtt_port": 8883,
+	"mqtt_ssl": true,
+	"mqtt_user": "xyz123",
+	"mqtt_pass": "xyz123"
+}
