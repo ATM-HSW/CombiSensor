@@ -1,0 +1,459 @@
+substitutions:
+  sub_name: "kombisensor_dd3b3e"
+  sub_fname: "kombisensor-dd3b3e"
+  # Feather S3 TFT
+  #sub_sda: GPIO42
+  #sub_scl: GPIO41
+  # QT PY S3 PSRAM
+  #sub_sda: GPIO07
+  #sub_scl: GPIO06
+  #waveshare S2 LCD
+  sub_sda: GPIO15
+  sub_scl: GPIO14
+
+esphome:
+  name: "${sub_name}"
+  friendly_name: "${sub_fname}"
+  name_add_mac_suffix: false
+
+esp32:
+  board: esp32-s2-saola-1
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret raumsenor_key
+  services:
+    #Co2 Calibration Service
+    - service: calibrate_co2_value
+      variables:
+        co2_ppm: int
+      then:
+      - scd4x.perform_forced_calibration:
+          value: !lambda 'return co2_ppm;'
+          id: my_scd41
+
+ota:
+  - platform: esphome
+    password: !secret raumsenor_ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Raumsensor Fallback Hotspot"
+    password: !secret raumsenor_ap_password
+
+captive_portal:
+
+external_components:
+  - source: github://Schluggi/esphome@dev
+    components:
+      - bme68x_bsec
+spi:
+  clk_pin: GPIO10
+  mosi_pin: GPIO11
+
+i2c:
+  sda: ${sub_sda}
+  scl: ${sub_scl}
+  frequency: 400kHz
+  scan: true
+  id: i2c0
+
+# Example configuration entry
+tca9548a:
+  - address: 0x71
+    id: multiplex0
+    i2c_id: i2c0
+    channels:
+      - bus_id: multiplex0channel0
+        channel: 0
+      - bus_id: multiplex0channel3
+        channel: 3
+
+output:
+  - platform: ledc
+    pin: GPIO45
+    id: gpio_d45_backlight_pwm
+
+# Define a monochromatic, dimmable light for the backlight
+light:
+  - platform: monochromatic
+    output: gpio_d45_backlight_pwm
+    name: "Display Backlight"
+    id: back_light
+    restore_mode: ALWAYS_ON
+    internal: True
+
+font:
+  #- file: 'Silkscreen-Regular.ttf'
+  - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
+    id: font1
+    size: 15
+
+  #- file: 'Silkscreen-Regular.ttf'
+  - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
+    id: font2
+    size: 20
+
+  #- file: 'Silkscreen-Regular.ttf'
+  - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
+    id: font3
+    size: 35
+
+  - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
+    id: web_font
+    size: 20
+
+
+display:
+  - platform: st7735
+    model: "INITR_MINI160X80"
+    reset_pin: GPIO21
+    cs_pin: GPIO9
+    dc_pin: GPIO18
+    rotation: 270
+    device_width: 82
+    device_height: 161
+    col_start: 0
+    row_start: 0
+    #use_bgr: true
+    invert_colors: true
+    eight_bit_color: true
+    update_interval: 5s
+    id: my_display
+    pages:
+      - id: page1 #Temp
+        lambda: |-
+          it.fill(COLOR_OFF);
+          it.strftime(80, 0, id(font3), TextAlign::TOP_CENTER, "%H:%M", id(esptime).now());
+          it.printf(80, 55, id(font1), TextAlign::BASELINE_CENTER, "%s", id(bme68x_iaq_str).state.c_str());
+          it.printf(0, 80, id(web_font), TextAlign::BASELINE_LEFT , "%.1f°C", id(bme68x_temperature).state);
+          it.printf(160, 80, id(web_font), TextAlign::BASELINE_RIGHT , "%.0f%%", id(bme68x_humidity).state);
+      - id: page2
+        lambda: |-
+          it.fill(COLOR_OFF);
+          it.strftime(80, 0, id(font3), TextAlign::TOP_CENTER, "%H:%M", id(esptime).now());
+          it.printf(80, 55, id(font1), TextAlign::BASELINE_CENTER, "%s", id(bme68x_iaq_str).state.c_str());
+          it.printf(80, 80, id(web_font), TextAlign::BASELINE_CENTER , "%.0f ppm", id(scd40_co2).state);
+
+interval:
+  - interval: 5s
+    then:
+      - display.page.show_next: my_display
+      - component.update: my_display
+
+time:
+  - platform: homeassistant
+    id: esptime
+
+apds9960:
+  address: 0x39
+  i2c_id: multiplex0channel0
+  update_interval: 60s
+
+bme68x_bsec:
+  i2c_id: multiplex0channel0
+  state_save_interval: 30min
+  bsec_configuration: 0,0,2,2,189,1,0,0,0,0,0,0,213,8,0,0,52,0,1,0,0,192,168,71,64,49,119,76,0,0,97,69,0,0,97,69,137,65,0,63,0,0,0,63,0,0,64,63,205,204,204,62,10,0,3,0,216,85,0,100,0,0,96,64,23,183,209,56,28,0,2,0,0,244,1,150,0,50,0,0,128,64,0,0,32,65,144,1,0,0,112,65,0,0,0,63,16,0,3,0,10,215,163,60,10,215,35,59,10,215,35,59,13,0,5,0,0,0,0,0,100,35,41,29,86,88,0,9,0,229,208,34,62,0,0,0,0,0,0,0,0,218,27,156,62,225,11,67,64,0,0,160,64,0,0,0,0,0,0,0,0,94,75,72,189,93,254,159,64,66,62,160,191,0,0,0,0,0,0,0,0,33,31,180,190,138,176,97,64,65,241,99,190,0,0,0,0,0,0,0,0,167,121,71,61,165,189,41,192,184,30,189,64,12,0,10,0,0,0,0,0,0,0,0,0,173,6,11,0,1,2,2,207,61,208,65,149,110,24,66,180,108,177,65,219,148,13,192,70,132,58,66,163,58,140,192,12,99,178,192,185,59,255,193,178,213,175,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,110,211,55,195,237,6,56,67,0,0,0,0,0,0,0,0,26,3,255,63,61,246,7,192,171,201,228,192,249,144,215,63,237,199,104,193,128,158,216,64,117,140,155,63,137,120,129,67,108,109,253,191,0,0,0,0,81,64,57,68,103,241,231,64,109,29,152,192,209,43,193,63,93,54,30,65,197,46,92,64,128,27,224,192,6,20,144,191,56,179,130,64,0,0,0,0,43,156,59,196,33,217,100,194,104,77,72,65,15,103,175,191,249,252,12,193,63,117,253,192,233,5,141,65,155,42,25,64,13,88,249,191,0,0,0,0,48,141,122,190,204,150,44,192,36,162,29,193,96,59,39,189,54,202,48,65,151,205,68,64,79,105,55,193,53,120,53,192,77,211,32,192,0,0,0,0,193,207,92,65,239,201,76,65,208,70,82,66,81,63,96,65,48,179,0,194,251,96,242,193,176,51,96,194,153,114,98,66,144,247,64,65,0,0,0,0,219,179,180,63,175,218,119,191,51,71,207,191,245,145,129,63,53,16,244,65,138,208,117,65,138,97,36,66,228,15,32,195,126,91,103,191,0,0,0,0,26,151,170,193,64,105,49,193,46,223,189,193,129,203,168,193,40,91,49,66,4,87,107,65,205,202,37,65,244,36,154,66,240,85,39,193,0,0,0,0,166,96,87,192,114,7,68,191,233,32,214,63,84,249,40,192,45,78,132,64,145,33,253,61,49,43,187,192,244,32,77,67,224,250,71,191,0,0,0,0,103,75,214,190,206,141,252,63,99,15,178,65,80,79,166,190,214,25,146,192,165,29,24,194,18,228,219,193,113,246,235,194,49,115,232,63,0,0,0,0,17,211,124,64,56,252,251,62,25,118,148,193,168,234,94,64,131,157,82,64,217,119,236,65,120,245,240,65,17,69,168,195,49,51,8,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,131,217,97,66,182,104,101,194,0,0,0,0,0,0,0,0,6,142,142,195,229,54,143,67,0,0,0,0,0,0,0,0,25,224,153,66,217,51,154,194,0,0,0,0,0,0,0,0,142,36,105,194,199,63,110,66,0,0,0,0,0,0,0,0,206,73,250,193,138,69,249,65,0,0,0,0,0,0,0,0,123,173,127,66,20,116,128,194,0,0,0,0,0,0,0,0,49,65,49,64,205,213,107,192,0,0,0,0,0,0,0,0,189,250,179,194,164,98,180,66,0,0,0,0,0,0,0,0,96,182,197,67,155,71,197,195,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,185,28,179,73,64,25,141,76,223,26,138,76,222,207,133,76,87,134,164,75,23,127,159,75,166,9,155,75,94,120,170,73,95,221,177,73,93,44,182,73,0,0,0,0,0,0,0,0,0,0,0,0,30,55,120,73,215,98,32,76,7,79,34,76,161,238,36,76,119,151,160,75,119,96,157,75,202,75,154,75,118,89,111,73,133,239,116,73,219,140,120,73,0,0,128,63,0,0,128,63,0,0,128,63,0,0,0,87,1,254,0,2,1,5,48,117,100,0,44,1,112,23,151,7,132,3,197,0,92,4,144,1,64,1,64,1,144,1,48,117,48,117,48,117,48,117,100,0,100,0,100,0,48,117,48,117,48,117,100,0,100,0,48,117,48,117,8,7,8,7,8,7,8,7,8,7,100,0,100,0,100,0,100,0,48,117,48,117,48,117,100,0,100,0,100,0,48,117,48,117,100,0,100,0,255,255,255,255,255,255,255,255,255,255,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,255,255,255,255,255,255,255,255,255,255,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,255,255,255,255,255,255,255,255,255,255,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,220,5,220,5,220,5,255,255,255,255,255,255,220,5,220,5,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,48,117,0,5,10,5,0,2,0,10,0,30,0,5,0,5,0,5,0,5,0,5,0,5,0,64,1,100,0,100,0,100,0,200,0,200,0,200,0,64,1,64,1,64,1,10,0,0,0,0,145,33,0,0
+  address: 0x77  
+
+sensor:
+  - platform: scd4x
+    address: 0x62
+    i2c_id: multiplex0channel0
+    update_interval: 20s
+    automatic_self_calibration: false
+    id: my_scd41
+    measurement_mode: low_power_periodic
+    ambient_pressure_compensation_source: bme68x_pressure
+    temperature_offset: 0
+    co2:
+      name: "SCD40 CO2"
+      id: scd40_co2
+    temperature:
+      name: "SCD40 Temperature"
+      id: scd40_temperature
+    humidity:
+      name: "SCD40 Humidity"
+      id: scd40_humidity
+
+  - platform: sgp4x
+    address: 0x59
+    i2c_id: multiplex0channel0
+    update_interval: 20s
+    voc:
+      name: "SGP40 VOC Index"
+      id: sgp40_voc
+    nox:
+      name: "SGP40 NOx Index"
+      id: sgp40_nox
+    compensation:
+      humidity_source: bme68x_humidity
+      temperature_source: bme68x_temperature
+
+  - platform: tsl2591
+    address: 0x29
+    i2c_id: multiplex0channel0
+    update_interval: 10s
+    gain: auto
+    device_factor: 53
+    glass_attenuation_factor: 7.7
+    visible:
+      name: "TSL2591 visible light"
+      id: tsl2591_visible
+    infrared:
+      name: "TSL2591 infrared light"
+      id: tsl2591_infrared
+    full_spectrum:
+      name: "TSL2591 full spectrum light"
+      id: tsl2591_full
+    calculated_lux:
+      name: "TSL2591 Lux"
+      id: tsl2591_lux
+    actual_gain:
+      name: "TSL2591 actual gain"
+      id: tsl2591_gain
+
+  - platform: apds9960
+    type: CLEAR
+    name: "APDS9960 Clear Channel"
+    
+  - platform: bme68x_bsec
+    temperature:
+      name: "BME688 Temperature"
+      id: bme68x_temperature
+      filters:
+        - median
+    pressure:
+      name: "BME688 Pressure"
+      id: bme68x_pressure
+      filters:
+        - median
+    humidity:
+      name: "BME688 Humidity"
+      id: bme68x_humidity
+      filters:
+        - median
+    iaq:
+      name: "BME688 IAQ"
+      id: bme68x_iaq
+      filters:
+        - median
+    iaq_static:
+      name: "BME688 Static IAQ"
+      id: bme68x_static_iaq
+      filters:
+        - median
+    co2_equivalent:
+      name: "BME688 CO2 Equivalent"
+      id: bme68x_eco2
+      filters:
+        - median
+    breath_voc_equivalent:
+      name: "BME688 Breath VOC Equivalent"
+      id: bme68x_evoc
+      filters:
+        - median
+    gas_resistance:
+      name: "BME688 Gas Resistance"
+      id: bme68x_gas_resistance
+      filters:
+        - median
+
+  - platform: htu21d
+    model: htu21d
+    address: 0x40
+    i2c_id: multiplex0channel0
+    temperature:
+      name: "HTU21d Temperature"
+      id: htu21d_temperature
+    humidity:
+      name: "HTU21d Humidity"
+      id: htu21d_humidity
+    heater:
+      name: "HTU21d Heater"
+      id: htu21d_heater
+    
+  - platform: ltr390
+    address: 0x53
+    i2c_id: multiplex0channel0
+    uv_index:
+      name: "LTR390 UV Index"
+      id: ltr390_uv_index
+    uv:
+      name: "LTR390 UV Sensor Counts"
+      id: ltr390_uv_sensor_counts
+    light:
+      name: "LTR390 Light"
+      id: ltr390_light
+    ambient_light:
+      name: "LTR390 Light Sensor Counts"
+      id: ltr390_light_sensor_counts
+    
+  - platform: as7341
+    address: 0x39
+    i2c_id: multiplex0channel3
+    f1:
+      name: "AS7341 415nm"
+      id: as7341_415nm
+    f2:
+      name: "AS7341 445nm"
+      id: as7341_445nm
+    f3:
+      name: "AS7341 480nm"
+      id: as7341_480nm
+    f4:
+      name: "AS7341 515nm"
+      id: as7341_515nm
+    f5:
+      name: "AS7341 555nm"
+      id: as7341_555nm
+    f6:
+      name: "AS7341 590nm"
+      id: as7341_590nm
+    f7:
+      name: "AS7341 630nm"
+      id: as7341_630nm
+    f8:
+      name: "AS7341 680nm"
+      id: as7341_680nm
+    clear:
+      name: "AS7341 Clear"
+      id: as7341_Clear
+    nir:
+      name: "AS7341 NIR"
+      id: as7341_NIR
+  
+  - platform: sen5x
+    id: sen54
+    address: 0x69
+    i2c_id: i2c0
+    pm_1_0:
+      name: "SEN5x PM <1µm Weight concentration"
+      id: sen5x_pm_1_0
+      accuracy_decimals: 1
+    pm_2_5:
+      name: "SEN5x PM <2.5µm Weight concentration"
+      id: sen5x_pm_2_5
+      accuracy_decimals: 1
+    pm_4_0:
+      name: "SEN5x PM <4µm Weight concentration"
+      id: sen5x_pm_4_0
+      accuracy_decimals: 1
+    pm_10_0:
+      name: "SEN5x PM <10µm Weight concentration"
+      id: sen5x_pm_10_0
+      accuracy_decimals: 1
+    temperature:
+      name: "SEN5x Temperature"
+      id: sen5x_temperature
+      accuracy_decimals: 1
+    humidity:
+      name: "SEN5x Humidity"
+      id: sen5x_humidity
+      accuracy_decimals: 0
+    voc:
+      name: "SEN5x VOC"
+      algorithm_tuning:
+        index_offset: 100
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 180
+        std_initial: 50
+        gain_factor: 230
+    temperature_compensation:
+      offset: 0
+      normalized_offset_slope: 0
+      time_constant: 0
+    acceleration_mode: low
+    store_baseline: true
+    update_interval: 10s
+
+  - platform: template
+    name: "LCD Backlight"
+    id: lcd_backlight
+    update_interval: 20s
+    lambda: |-
+      if(int(id(tsl2591_lux).state) == NAN) {
+        return id(lcd_backlight).state;
+      }
+      else {
+        float temp_bl = float((9.9323*log(id(tsl2591_lux).state) + 10)/100);
+        if(temp_bl <= 0.1) {
+          return 0.1;
+        } else if(temp_bl >= 1) {
+          return 1;
+        } else {
+          return temp_bl;
+        }
+      }
+    on_value:
+      then:
+        - light.control:
+            id: back_light
+            state: on
+            brightness: !lambda "return id(lcd_backlight).state;"
+
+button:
+  - platform: template
+    name: "Calibrate SCD40 To 420ppm"
+    id: set_SCD40_calibrate
+    on_press:
+      - scd4x.perform_forced_calibration:
+          value: 420
+          id: my_scd41
+
+  - platform: restart
+    icon: mdi:power-cycle
+    name: "ESP Reboot"
+
+text_sensor:
+    # Convert VOC Index To Text: 
+    # https://sensirion.com/media/documents/02232963/6294E043/Info_Note_VOC_Index.pdf
+    # https://sensirion.com/media/documents/ACD82D45/6294DFC0/Info_Note_Integration_VOC_NOx_Sensor.pdf
+  - platform: template
+    name: "SGP4x IAQ Classification"
+    id: sgp40_voc_quality
+    icon: mdi:air-filter
+    lambda: |-
+      if (id(sgp40_voc).state < 80) {
+        return std::string("Hervorragend"); }
+      else if (id(sgp40_voc).state < 150) {
+        return std::string("Normal"); }
+      else if (id(sgp40_voc).state < 250) {
+        return std::string("Schlecht"); }
+      else if (id(sgp40_voc).state < 400) {
+        return std::string("Sehr Schlecht"); }
+      else {
+        return std::string("Extrem Schlecht"); }
+
+  - platform: template
+    name: "BME688 IAQ Classification"
+    id: bme68x_iaq_str
+    icon: "mdi:checkbox-marked-circle-outline"
+    lambda: |-
+      if ( int(id(bme68x_iaq).state) <= 50) {
+        return {"Hervorragend"}; }
+      else if (int(id(bme68x_iaq).state) >= 51 && int(id(bme68x_iaq).state) <= 100) {
+        return {"Normal"}; }
+      else if (int(id(bme68x_iaq).state) >= 101 && int(id(bme68x_iaq).state) <= 150) {
+        return {"Leicht verschmutzt"}; }
+      else if (int(id(bme68x_iaq).state) >= 151 && int(id(bme68x_iaq).state) <= 200) {
+        return {"Moderat verschmutzt"}; }
+      else if (int(id(bme68x_iaq).state) >= 201 && int(id(bme68x_iaq).state) <= 250) {
+        return {"Erheblich verschmutzt"}; }
+      else if (int(id(bme68x_iaq).state) >= 251 && int(id(bme68x_iaq).state) <= 350) {
+        return {"Schwer verschmutzt"}; }
+      else if (int(id(bme68x_iaq).state) >= 351) {
+        return {"Extrem verschmutzt"}; }
+      else {
+        return {"Error"}; }
