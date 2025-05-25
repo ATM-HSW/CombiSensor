@@ -1,0 +1,302 @@
+substitutions:
+  sub_name: "kombisensor_5a3bfc"
+  sub_fname: "kombisensor-5a3bfc"
+  # Feather S3 TFT
+  #sub_sda: GPIO42
+  #sub_scl: GPIO41
+  # QT PY S3 PSRAM
+  sub_sda: GPIO07
+  sub_scl: GPIO06
+
+esphome:
+  #name: kombisensor
+  name: "${sub_name}"
+  #friendly_name: "Kombisensor"
+  friendly_name: "${sub_fname}"
+  name_add_mac_suffix: false
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret combisensor_api_key
+  services:
+    - service: calibrate_co2_value
+      variables:
+        co2_ppm: int
+      then:
+      - scd4x.perform_forced_calibration:
+          value: !lambda 'return co2_ppm;'
+          id: my_scd41
+
+ota:
+  - platform: esphome
+    password: !secret combisensor_ota_password
+
+wifi:
+  networks:
+  - ssid: !secret wifi_ssid01
+    password: !secret wifi_password01
+  - ssid: !secret wifi_ssid02
+    password: !secret wifi_password02
+  - ssid: !secret wifi_ssid03
+    password: !secret wifi_password03
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Combisensor-Xx Fallback Hotspot"
+    password: !secret combisensor_wifi_ap_password
+
+captive_portal:
+
+web_server:
+  port: 80
+
+external_components:
+  - source: github://Schluggi/esphome@dev
+    components: [ bme68x_bsec ]
+
+i2c:
+  sda: ${sub_sda}
+  scl: ${sub_scl}
+  id: i2c0
+
+# TCA9548A Multiplexer
+tca9548a:
+  - address: 0x71
+    id: multiplex0
+    i2c_id: i2c0
+    channels:
+      - bus_id: i2c0_mpx0
+        channel: 0
+      - bus_id: i2c0_mpx1
+        channel: 1
+      - bus_id: i2c0_mpx2
+        channel: 2
+      - bus_id: i2c0_mpx3
+        channel: 3
+
+time:
+  - platform: homeassistant
+    id: esptime
+
+apds9960:
+  address: 0x39
+  i2c_id: i2c0_mpx0
+  update_interval: 60s
+
+bme68x_bsec:
+  i2c_id: i2c0_mpx0
+  state_save_interval: 30min
+  bsec_configuration: 0,0,2,2,189,1,0,0,0,0,0,0,213,8,0,0,52,0,1,0,0,192,168,71,64,49,119,76,0,0,97,69,0,0,97,69,137,65,0,63,0,0,0,63,0,0,64,63,205,204,204,62,10,0,3,0,216,85,0,100,0,0,96,64,23,183,209,56,28,0,2,0,0,244,1,150,0,50,0,0,128,64,0,0,32,65,144,1,0,0,112,65,0,0,0,63,16,0,3,0,10,215,163,60,10,215,35,59,10,215,35,59,13,0,5,0,0,0,0,0,100,35,41,29,86,88,0,9,0,229,208,34,62,0,0,0,0,0,0,0,0,218,27,156,62,225,11,67,64,0,0,160,64,0,0,0,0,0,0,0,0,94,75,72,189,93,254,159,64,66,62,160,191,0,0,0,0,0,0,0,0,33,31,180,190,138,176,97,64,65,241,99,190,0,0,0,0,0,0,0,0,167,121,71,61,165,189,41,192,184,30,189,64,12,0,10,0,0,0,0,0,0,0,0,0,173,6,11,0,1,2,2,207,61,208,65,149,110,24,66,180,108,177,65,219,148,13,192,70,132,58,66,163,58,140,192,12,99,178,192,185,59,255,193,178,213,175,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,110,211,55,195,237,6,56,67,0,0,0,0,0,0,0,0,26,3,255,63,61,246,7,192,171,201,228,192,249,144,215,63,237,199,104,193,128,158,216,64,117,140,155,63,137,120,129,67,108,109,253,191,0,0,0,0,81,64,57,68,103,241,231,64,109,29,152,192,209,43,193,63,93,54,30,65,197,46,92,64,128,27,224,192,6,20,144,191,56,179,130,64,0,0,0,0,43,156,59,196,33,217,100,194,104,77,72,65,15,103,175,191,249,252,12,193,63,117,253,192,233,5,141,65,155,42,25,64,13,88,249,191,0,0,0,0,48,141,122,190,204,150,44,192,36,162,29,193,96,59,39,189,54,202,48,65,151,205,68,64,79,105,55,193,53,120,53,192,77,211,32,192,0,0,0,0,193,207,92,65,239,201,76,65,208,70,82,66,81,63,96,65,48,179,0,194,251,96,242,193,176,51,96,194,153,114,98,66,144,247,64,65,0,0,0,0,219,179,180,63,175,218,119,191,51,71,207,191,245,145,129,63,53,16,244,65,138,208,117,65,138,97,36,66,228,15,32,195,126,91,103,191,0,0,0,0,26,151,170,193,64,105,49,193,46,223,189,193,129,203,168,193,40,91,49,66,4,87,107,65,205,202,37,65,244,36,154,66,240,85,39,193,0,0,0,0,166,96,87,192,114,7,68,191,233,32,214,63,84,249,40,192,45,78,132,64,145,33,253,61,49,43,187,192,244,32,77,67,224,250,71,191,0,0,0,0,103,75,214,190,206,141,252,63,99,15,178,65,80,79,166,190,214,25,146,192,165,29,24,194,18,228,219,193,113,246,235,194,49,115,232,63,0,0,0,0,17,211,124,64,56,252,251,62,25,118,148,193,168,234,94,64,131,157,82,64,217,119,236,65,120,245,240,65,17,69,168,195,49,51,8,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,131,217,97,66,182,104,101,194,0,0,0,0,0,0,0,0,6,142,142,195,229,54,143,67,0,0,0,0,0,0,0,0,25,224,153,66,217,51,154,194,0,0,0,0,0,0,0,0,142,36,105,194,199,63,110,66,0,0,0,0,0,0,0,0,206,73,250,193,138,69,249,65,0,0,0,0,0,0,0,0,123,173,127,66,20,116,128,194,0,0,0,0,0,0,0,0,49,65,49,64,205,213,107,192,0,0,0,0,0,0,0,0,189,250,179,194,164,98,180,66,0,0,0,0,0,0,0,0,96,182,197,67,155,71,197,195,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,185,28,179,73,64,25,141,76,223,26,138,76,222,207,133,76,87,134,164,75,23,127,159,75,166,9,155,75,94,120,170,73,95,221,177,73,93,44,182,73,0,0,0,0,0,0,0,0,0,0,0,0,30,55,120,73,215,98,32,76,7,79,34,76,161,238,36,76,119,151,160,75,119,96,157,75,202,75,154,75,118,89,111,73,133,239,116,73,219,140,120,73,0,0,128,63,0,0,128,63,0,0,128,63,0,0,0,87,1,254,0,2,1,5,48,117,100,0,44,1,112,23,151,7,132,3,197,0,92,4,144,1,64,1,64,1,144,1,48,117,48,117,48,117,48,117,100,0,100,0,100,0,48,117,48,117,48,117,100,0,100,0,48,117,48,117,8,7,8,7,8,7,8,7,8,7,100,0,100,0,100,0,100,0,48,117,48,117,48,117,100,0,100,0,100,0,48,117,48,117,100,0,100,0,255,255,255,255,255,255,255,255,255,255,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,44,1,255,255,255,255,255,255,255,255,255,255,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,8,7,255,255,255,255,255,255,255,255,255,255,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,112,23,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,220,5,220,5,220,5,255,255,255,255,255,255,220,5,220,5,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,48,117,0,5,10,5,0,2,0,10,0,30,0,5,0,5,0,5,0,5,0,5,0,5,0,64,1,100,0,100,0,100,0,200,0,200,0,200,0,64,1,64,1,64,1,10,0,0,0,0,145,33,0,0
+  address: 0x77  
+
+sensor:
+  - platform: scd4x
+    address: 0x62
+    i2c_id: i2c0_mpx0
+    update_interval: 60s
+    id: my_scd41
+    measurement_mode: low_power_periodic
+    ambient_pressure_compensation_source: bme68x_pressure
+    temperature_offset: 0
+    co2:
+      name: "SCD4x CO2"
+      id: "scd4x_co2"
+    temperature:
+      name: "SCD4x Temperature"
+    humidity:
+      name: "SCD4x Humidity"
+
+  - platform: sgp4x
+    address: 0x59
+    i2c_id: i2c0_mpx0
+    update_interval: 60s
+    voc:
+      name: "SGP4x VOC Index"
+      id: "sgp4x_voc"
+      unit_of_measurement: "IAQ"
+    nox:
+      name: "SGP4x NOx Index"
+      id: "sgp4x_nox"
+    compensation:
+      humidity_source: bme68x_humidity
+      temperature_source: bme68x_temperature
+
+  - platform: tsl2591
+    address: 0x29
+    i2c_id: i2c0_mpx0
+    update_interval: 20s
+    gain: auto
+    device_factor: 53
+    glass_attenuation_factor: 7.7
+    visible:
+      name: "TSL2591 visible light"
+    infrared:
+      name: "TSL2591 infrared light"
+    full_spectrum:
+      name: "TSL2591 full spectrum light"
+    calculated_lux:
+      name: "TSL2591 Lux"
+      id: i_lux
+    actual_gain:
+      name: "TSL2591 actual gain"
+      id: "actual_gain"
+
+  - platform: apds9960
+    type: CLEAR
+    name: "APDS9960 Clear Channel"
+
+  - platform: htu21d
+    model: htu21d
+    i2c_id: i2c0_mpx0
+    temperature:
+      name: "HTU21 Temperature"
+      id: htu21_temperature
+    humidity:
+      name: "HTU21 Humidity"
+      id: htu21_humidity
+    heater:
+      name: "HTU21 Heater"
+      id: htu21_heater
+
+  - platform: bme68x_bsec
+    temperature:
+      name: "BME68x Temperature"
+      id: bme68x_temperature
+      filters:
+        - median
+    pressure:
+      name: "BME68x Pressure"
+      id: bme68x_pressure
+      filters:
+        - median
+    humidity:
+      name: "BME68x Humidity"
+      id: bme68x_humidity
+      filters:
+        - median
+    iaq:
+      name: "BME68x IAQ"
+      id: bme68x_iaq
+      filters:
+        - median
+    iaq_static:
+      name: "BME68x Static IAQ"      
+      id: bme68x_static_iaq
+      filters:
+        - median
+    co2_equivalent:
+      name: "BME68x CO2 Equivalent"
+      id: bme68x_eco2
+      filters:
+        - median
+    breath_voc_equivalent:
+      name: "BME68x Breath VOC Equivalent"
+      id: bme68x_breath_voc_equiv
+      filters:
+        - median
+    gas_resistance:
+      name: "BME68x Gas Resistance"
+      id: bme68x_gas_resistance
+      filters:
+        - median
+
+  - platform: sen5x
+    id: senxx1
+    i2c_id: i2c0
+    address: 0x69
+    pm_1_0:
+      name: "Sen5x PM <1µm Weight concentration"
+      id: sen5x_pm_1_0
+      accuracy_decimals: 1
+    pm_2_5:
+      name: "Sen5x PM <2.5µm Weight concentration"
+      id: sen5x_pm_2_5
+      accuracy_decimals: 1
+    pm_4_0:
+      name: "Sen5x PM <4µm Weight concentration"
+      id: sen5x_pm_4_0
+      accuracy_decimals: 1
+    pm_10_0:
+      name: "Sen5x PM <10µm Weight concentration"
+      id: sen5x_pm_10_0
+      accuracy_decimals: 1
+    temperature:
+      name: "Sen5x Temperature"
+      id: sen5x_temperature
+      accuracy_decimals: 1
+    humidity:
+      name: "Sen5x Humidity"
+      id: sen5x_humidity
+      accuracy_decimals: 0
+    voc:
+      name: "Sen5x VOC"
+      id: sen5x_voc
+      unit_of_measurement: "IAQ"
+      algorithm_tuning:
+        index_offset: 100
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 180
+        std_initial: 50
+        gain_factor: 230
+    temperature_compensation:
+      offset: 0
+      normalized_offset_slope: 0
+      time_constant: 0
+    acceleration_mode: low
+    store_baseline: true
+    update_interval: 10s
+
+text_sensor:
+  - platform: template
+    name: "SGP4x IAQ Classification"
+    id: sgp4x_voc_quality
+    icon: mdi:air-filter
+    lambda: |-
+      if (id(sgp4x_voc).state < 80) {
+        return std::string("Hervorragend"); }
+      else if (id(sgp4x_voc).state < 150) {
+        return std::string("Normal"); }
+      else if (id(sgp4x_voc).state < 250) {
+        return std::string("Schlecht"); }
+      else if (id(sgp4x_voc).state < 400) {
+        return std::string("Sehr Schlecht"); }
+      else {
+        return std::string("Extrem Schlecht"); }
+
+  - platform: template
+    name: "BME68x IAQ Classification"
+    id: bme68x_iaq_str
+    #icon: "mdi:checkbox-marked-circle-outline"
+    icon: mdi:air-filter
+    lambda: |-
+      if ( int(id(bme68x_iaq).state) <= 50) {
+        return {"Hervorragend"}; }
+      else if (int(id(bme68x_iaq).state) >= 51 && int(id(bme68x_iaq).state) <= 100) {
+        return {"Normal"}; }
+      else if (int(id(bme68x_iaq).state) >= 101 && int(id(bme68x_iaq).state) <= 150) {
+        return {"Leicht verschmutzt"}; }
+      else if (int(id(bme68x_iaq).state) >= 151 && int(id(bme68x_iaq).state) <= 200) {
+        return {"Moderat verschmutzt"}; }
+      else if (int(id(bme68x_iaq).state) >= 201 && int(id(bme68x_iaq).state) <= 250) {
+        return {"Erheblich verschmutzt"}; }
+      else if (int(id(bme68x_iaq).state) >= 251 && int(id(bme68x_iaq).state) <= 350) {
+        return {"Schwer verschmutzt"}; }
+      else if (int(id(bme68x_iaq).state) >= 351) {
+        return {"Extrem verschmutzt"}; }
+      else {
+        return {"Error"}; }
+
+button:
+  - platform: restart
+    name: "Restart"

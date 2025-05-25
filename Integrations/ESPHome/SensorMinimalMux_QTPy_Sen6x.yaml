@@ -1,0 +1,164 @@
+substitutions:
+  sub_name: "kombisensor-595af4"
+  sub_fname: "kombisensor-595af4"
+  # Feather S3 TFT
+  #sub_sda: GPIO42
+  #sub_scl: GPIO41
+  # QT PY S3 PSRAM
+  sub_sda: GPIO07
+  sub_scl: GPIO06
+
+esphome:
+  #name: kombisensor
+  name: "${sub_name}"
+  #friendly_name: "Kombisensor"
+  friendly_name: "${sub_fname}"
+  name_add_mac_suffix: false
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  reboot_timeout: 0s
+  encryption:
+    key: !secret combisensor_api_key
+#  services:
+#    - service: calibrate_co2_value
+#      variables:
+#        co2_ppm: int
+#      then:
+#      - sen6x.perform_forced_calibration:
+#          value: !lambda 'return co2_ppm;'
+#          id: my_scd41
+
+ota:
+  - platform: esphome
+    password: !secret combisensor_ota_password
+
+wifi:
+  networks:
+  - ssid: !secret wifi_ssid01
+    password: !secret wifi_password01
+  - ssid: !secret wifi_ssid02
+    password: !secret wifi_password02
+  - ssid: !secret wifi_ssid03
+    password: !secret wifi_password03
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Combisensor-Xx Fallback Hotspot"
+    password: !secret combisensor_wifi_ap_password
+
+captive_portal:
+
+web_server:
+  port: 80
+
+external_components:
+  - source: github://ATM-HSW/esphome@dev-oh
+    components: [ sen6x ]
+    refresh: 0s
+
+i2c:
+  sda: ${sub_sda}
+  scl: ${sub_scl}
+  scan: true
+  id: i2c0
+
+# TCA9548A Multiplexer
+tca9548a:
+  - address: 0x71
+    id: multiplex0
+    i2c_id: i2c0
+    channels:
+      - bus_id: i2c0_mpx0
+        channel: 0
+      - bus_id: i2c0_mpx1
+        channel: 1
+      - bus_id: i2c0_mpx2
+        channel: 2
+      - bus_id: i2c0_mpx3
+        channel: 3
+      
+time:
+  - platform: homeassistant
+    id: esptime
+
+sensor:
+  - platform: sen6x
+    id: senxx
+    i2c_id: i2c0_mpx2
+    address: 0x6b
+    pm_1_0:
+      name: "Sen6x PM <1µm Weight concentration"
+      id: sen6x_pm_1_0
+      accuracy_decimals: 1
+    pm_2_5:
+      name: "Sen6x PM <2.5µm Weight concentration"
+      id: sen6x_pm_2_5
+      accuracy_decimals: 1
+    pm_4_0:
+      name: "Sen6x PM <4µm Weight concentration"
+      id: sen6x_pm_4_0
+      accuracy_decimals: 1
+    pm_10_0:
+      name: "Sen6x PM <10µm Weight concentration"
+      id: sen6x_pm_10_0
+      accuracy_decimals: 1
+    temperature:
+      name: "Sen6x Temperature"
+      id: sen6x_temperature
+      accuracy_decimals: 1
+    humidity:
+      name: "Sen6x Humidity"
+      id: sen6x_humidity
+      accuracy_decimals: 0
+    co2:
+      name: "Sen6x CO2"
+      id: sen6x_co2
+      accuracy_decimals: 0
+    voc:
+      name: "Sen6x VOC"
+      id: sen6x_voc
+      unit_of_measurement: "IAQ"
+      algorithm_tuning:
+        index_offset: 100
+        learning_time_offset_hours: 12
+        learning_time_gain_hours: 12
+        gating_max_duration_minutes: 180
+        std_initial: 50
+        gain_factor: 230
+    temperature_compensation:
+      offset: 0
+      normalized_offset_slope: 0
+      time_constant: 0
+    acceleration_mode: low
+    store_baseline: true
+    update_interval: 2min
+
+text_sensor:
+  - platform: template
+    name: "Sen6x IAQ Classification"
+    id: sen6x_voc_quality
+    icon: mdi:air-filter
+    lambda: |-
+      if (id(sen6x_voc).state < 80) {
+        return std::string("Hervorragend"); }
+      else if (id(sen6x_voc).state < 150) {
+        return std::string("Normal"); }
+      else if (id(sen6x_voc).state < 250) {
+        return std::string("Schlecht"); }
+      else if (id(sen6x_voc).state < 400) {
+        return std::string("Sehr Schlecht"); }
+      else {
+        return std::string("Extrem Schlecht"); }
+
+button:
+  - platform: restart
+    name: "Restart"
